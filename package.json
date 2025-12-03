@@ -163,7 +163,6 @@
     "prom-client": "^14.1.0",
     "pug": "^3.0.0",
     "replace": "^1.2.0",
-    "request": "^2.88.2",
     "sanitize-filename": "^1.6.3",
     "sanitize-html": "1.7.1",
     "semver": "^7.3.2",
