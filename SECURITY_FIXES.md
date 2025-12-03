@@ -140,6 +140,35 @@ The following packages have known vulnerabilities but no fixed versions are avai
 - **Status**: ⚠️ LICENSE COMPLIANCE ISSUE
 - **Note**: GPL-2.0 may not be compatible with your project's license
 
+## 🔐 Hardcoded Secrets (Educational Vulnerabilities)
+
+### Fixed with Environment Variable Support
+
+The following hardcoded secrets have been moved to environment variables while maintaining fallbacks for educational purposes:
+
+1. **JWT Private Key** (`JWT_PRIVATE_KEY`):
+   - Previously: Hardcoded RSA private key in source code
+   - Now: Reads from `JWT_PRIVATE_KEY` environment variable
+   - Fallback: Original hardcoded value (for Juice Shop training)
+   - **Production**: Set this environment variable to your secure private key
+
+2. **HMAC Secret** (`HMAC_SECRET`):
+   - Previously: Hardcoded secret 'pa4qacea4VK9t9nGv7yZtwmj'
+   - Now: Reads from `HMAC_SECRET` environment variable
+   - Fallback: Original hardcoded value (for Juice Shop training)
+   - **Production**: Set to a secure random secret (minimum 32 bytes)
+
+3. **Additional Insecure Practices Documented**:
+   - MD5 hashing (should use bcrypt, scrypt, or Argon2 for passwords)
+   - JWT private key reused for HMAC in deluxeToken (should use separate secrets)
+   - Math.random() in denyAll() (not cryptographically secure)
+
+### Educational Purpose Note
+
+These hardcoded values remain as fallbacks because Juice Shop is an **intentionally vulnerable application** for security training. The environment variable support allows:
+- **Training environments**: Use insecure defaults to demonstrate vulnerabilities
+- **Production-like testing**: Override with secure values to test proper configuration
+
 ## 🔄 Recommendations
 
 1. **Immediate Actions**:
