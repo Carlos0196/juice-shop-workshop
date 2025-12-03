@@ -24,7 +24,8 @@ module.exports = function retrieveBasket () {
     }
     
     // SECURITY FIX: Verify the user is accessing their own basket
-    if (user.bid && String(user.bid) !== String(id)) {
+    // Use explicit null/undefined check instead of truthy check to handle bid=0
+    if (user.bid !== null && user.bid !== undefined && String(user.bid) !== String(id)) {
       res.status(403).json({ error: 'Access denied - you can only access your own basket' })
       return
     }

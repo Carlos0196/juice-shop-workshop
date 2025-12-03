@@ -19,10 +19,17 @@ module.exports = function productReviews () {
       return
     }
 
-    // SECURITY FIX: Validate that id is a string (MongoDB ObjectId)
-    const reviewId = String(req.body.id)
-    if (!reviewId || typeof reviewId !== 'string') {
+    // SECURITY FIX: Validate that id exists and is valid before converting to string
+    // Check for null, undefined, or empty values before String conversion
+    // String(null) becomes "null" and String(undefined) becomes "undefined" which would pass
+    if (req.body.id === null || req.body.id === undefined || req.body.id === '') {
       res.status(400).json({ error: 'Invalid review ID' })
+      return
+    }
+    const reviewId = String(req.body.id)
+    // Additional validation: MongoDB ObjectId should be 24 hex characters
+    if (!/^[a-fA-F0-9]{24}$/.test(reviewId)) {
+      res.status(400).json({ error: 'Invalid review ID format' })
       return
     }
 

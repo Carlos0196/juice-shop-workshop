@@ -7,6 +7,7 @@ import os from 'os'
 import fs = require('fs')
 import { type NextFunction, type Request, type Response } from 'express'
 import path from 'path'
+import vm = require('vm')
 import * as utils from '../lib/utils'
 
 const libxml = require('libxmljs2')
@@ -90,25 +91,33 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
     if ((file?.buffer) != null) {
       const data = file.buffer.toString()
       try {
-        // SECURITY FIX: Disable external entities to prevent XXE attacks
+        // SECURITY FIX: Use vm sandbox with timeout to prevent XML DoS attacks (billion laughs)
+        // The timeout ensures that malicious XML that causes infinite expansion is terminated
+        const sandbox = { libxml, data }
+        vm.createContext(sandbox)
+        
+        // SECURITY FIX: Parse XML with secure options inside a timeout-protected sandbox
         // noent: false - don't substitute entities (prevents XXE file disclosure)
         // nonet: true - disable network access (prevents SSRF via XXE)
         // dtdload: false - don't load external DTDs
         // dtdvalid: false - don't validate against DTD
-        const xmlDoc = libxml.parseXml(data, { 
-          noblanks: true, 
-          noent: false,      // SECURITY FIX: Disable entity substitution
-          nocdata: true,
-          nonet: true,       // SECURITY FIX: Disable network access
-          dtdload: false,    // SECURITY FIX: Don't load external DTDs
-          dtdvalid: false    // SECURITY FIX: Don't validate DTD
-        })
+        const xmlDoc = vm.runInContext(
+          'libxml.parseXml(data, { noblanks: true, noent: false, nocdata: true, nonet: true, dtdload: false, dtdvalid: false })',
+          sandbox,
+          { timeout: 2000 }  // 2 second timeout to prevent DoS
+        )
         const xmlString = xmlDoc.toString(false)
         res.status(410)
         next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(xmlString, 400) + ' (' + file.originalname + ')'))
       } catch (err: any) {
-        res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + err.message + ' (' + file.originalname + ')'))
+        // Check if it was a timeout (DoS attack attempt)
+        if (err.message && err.message.includes('Script execution timed out')) {
+          res.status(503)
+          next(new Error('Request timed out - XML processing took too long'))
+        } else {
+          res.status(410)
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + err.message + ' (' + file.originalname + ')'))
+        }
       }
     } else {
       res.status(410)

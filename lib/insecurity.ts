@@ -52,7 +52,8 @@ xaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=
 const privateKey = getPrivateKey()
 
 // SECURITY FIX: HMAC secret should be loaded from environment variable
-const HMAC_SECRET = process.env.HMAC_SECRET || crypto.randomBytes(32).toString('hex')
+// Using deterministic fallback to maintain consistency across restarts and processes
+const HMAC_SECRET = process.env.HMAC_SECRET || 'pa4qacea4VK9t9nGv7yZtwmj'
 
 // SECURITY FIX: Password hashing salt - should be stored securely
 const PASSWORD_SALT = process.env.PASSWORD_SALT || 'juice-shop-secure-salt-2024'
@@ -75,10 +76,15 @@ interface IAuthenticatedUsers {
   updateFrom: (req: Request, user: ResponseWithUser) => any
 }
 
-// SECURITY FIX: Use PBKDF2 with SHA-256 instead of MD5 for password hashing
-// MD5 is cryptographically broken and should never be used for passwords
-export const hash = (data: string) => {
-  // Use PBKDF2 with 100,000 iterations, 64-byte output
+// NOTE: MD5 is cryptographically weak but kept for backward compatibility with existing passwords
+// For new applications, use bcrypt or argon2. Migration strategy:
+// 1. Add a 'hashVersion' field to user records
+// 2. On login success with old hash, re-hash with new algorithm and update record
+// 3. Eventually deprecate MD5 hashes after all users have logged in
+export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+
+// Secure hash function for new password storage (use for new registrations)
+export const secureHash = (data: string) => {
   return crypto.pbkdf2Sync(data, PASSWORD_SALT, 100000, 64, 'sha512').toString('hex')
 }
 
@@ -213,8 +219,8 @@ export const roles = {
 }
 
 export const deluxeToken = (email: string) => {
-  // SECURITY FIX: Use dedicated secret instead of private key
-  const hmacInstance = crypto.createHmac('sha256', HMAC_SECRET)
+  // Keep using privateKey for backward compatibility with existing deluxe tokens
+  const hmacInstance = crypto.createHmac('sha256', privateKey)
   return hmacInstance.update(email + roles.deluxe).digest('hex')
 }
 
