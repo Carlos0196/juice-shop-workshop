@@ -21,6 +21,7 @@ This document tracks the security vulnerabilities identified by Snyk SCA scan an
 - **CVE-2019-25225**: Cross-site Scripting (XSS) - MEDIUM
 - **CVE-2017-16016**: Cross-site Scripting (XSS) - MEDIUM
 - **Status**: ✅ FIXED
+- **Note**: v2.x includes `iframe` in default `allowedTags`. Configured to exclude `iframe` to maintain backward compatibility with v1.x behavior (iframes must be completely removed for XSS challenge detection).
 
 ### 4. socket.io: ^3.1.0 → ^4.8.0
 - **CVE-2024-47764**: Cookie XSS - MEDIUM (via cookie dependency)
