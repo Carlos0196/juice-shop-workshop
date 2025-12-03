@@ -52,6 +52,10 @@ This upgrade fixes multiple vulnerabilities in dependencies:
 - base64url Uninitialized Memory Exposure - HIGH
 - **CVE-2016-1000223**: jws Forgeable Public/Private Tokens - HIGH
 - **Status**: ✅ FIXED
+- **Breaking Changes Fixed**: Updated `lib/insecurity.ts` for v7+ API:
+  - Changed to named import: `import { expressjwt } from 'express-jwt'`
+  - Added required `algorithms: ['RS256']` parameter to `isAuthorized()` and `denyAll()`
+  - Updated `jwt.verify()` to include algorithms option for security
 
 ## ⚠️ Vulnerabilities Without Available Fixes
 
