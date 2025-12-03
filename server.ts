@@ -39,7 +39,6 @@ const serveIndex = require('serve-index')
 const bodyParser = require('body-parser')
 const cors = require('cors')
 const securityTxt = require('express-security.txt')
-const robots = require('express-robots-txt')
 const yaml = require('js-yaml')
 const swaggerUi = require('swagger-ui-express')
 const RateLimit = require('express-rate-limit')
@@ -203,7 +202,10 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   }))
 
   /* robots.txt */
-  app.use(robots({ UserAgent: '*', Disallow: '/ftp' }))
+  app.use('/robots.txt', (req: Request, res: Response) => {
+    res.type('text/plain')
+    res.send('User-agent: *\nDisallow: /ftp')
+  })
 
   /* Check for any URLs having been called that would be expected for challenge solving without cheating */
   app.use(antiCheat.checkForPreSolveInteractions())

@@ -13,17 +13,6 @@ module.exports = function (grunt) {
   grunt.initConfig({
     pkg: grunt.file.readJSON('package.json'),
 
-    replace_json: {
-      manifest: {
-        src: 'package.json',
-        changes: {
-          'engines.node': (node || '<%= pkg.engines.node %>'),
-          os: (os ? [os] : '<%= pkg.os %>'),
-          cpu: (platform ? [platform] : '<%= pkg.cpu %>')
-        }
-      }
-    },
-
     compress: {
       pckg: {
         options: {
@@ -68,6 +57,19 @@ module.exports = function (grunt) {
     }
   })
 
+  // Custom task to update package.json using jsonfile
+  grunt.registerTask('update_package_json', 'Update package.json fields safely', function () {
+    const jsonfile = require('jsonfile')
+    const pkgPath = 'package.json'
+    const pkg = jsonfile.readFileSync(pkgPath)
+    pkg.engines = pkg.engines || {}
+    pkg.engines.node = node || pkg.engines.node
+    pkg.os = os ? [os] : pkg.os
+    pkg.cpu = platform ? [platform] : pkg.cpu
+    jsonfile.writeFileSync(pkgPath, pkg, { spaces: 2 })
+    grunt.log.writeln('package.json updated safely.')
+  })
+
   grunt.registerTask('checksum', 'Create .md5 checksum files', function () {
     const fs = require('fs')
     const crypto = require('crypto')
@@ -83,7 +85,6 @@ module.exports = function (grunt) {
     })
   })
 
-  grunt.loadNpmTasks('grunt-replace-json')
   grunt.loadNpmTasks('grunt-contrib-compress')
-  grunt.registerTask('package', ['replace_json:manifest', 'compress:pckg', 'checksum'])
+  grunt.registerTask('package', ['update_package_json', 'compress:pckg', 'checksum'])
 }
