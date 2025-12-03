@@ -17,33 +17,52 @@ module.exports = function changePassword () {
     const newPassword = query.new
     const newPasswordInString = newPassword?.toString()
     const repeatPassword = query.repeat
+    
+    // SECURITY FIX: Always require current password to prevent CSRF/session hijacking attacks
+    if (!currentPassword) {
+      res.status(401).send(res.__('Current password is required.'))
+      return
+    }
+    
     if (!newPassword || newPassword === 'undefined') {
       res.status(401).send(res.__('Password cannot be empty.'))
-    } else if (newPassword !== repeatPassword) {
+      return
+    }
+    
+    if (newPassword !== repeatPassword) {
       res.status(401).send(res.__('New and repeated password do not match.'))
-    } else {
-      const token = headers.authorization ? headers.authorization.substr('Bearer='.length) : null
-      const loggedInUser = security.authenticatedUsers.get(token)
-      if (loggedInUser) {
-        if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {
-          res.status(401).send(res.__('Current password is not correct.'))
-        } else {
-          UserModel.findByPk(loggedInUser.data.id).then((user: UserModel | null) => {
-            if (user != null) {
-              user.update({ password: newPasswordInString }).then((user: UserModel) => {
-                challengeUtils.solveIf(challenges.changePasswordBenderChallenge, () => { return user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic') })
-                res.json({ user })
-              }).catch((error: Error) => {
-                next(error)
-              })
-            }
+      return
+    }
+    
+    // SECURITY FIX: Enforce minimum password requirements
+    if (newPasswordInString && newPasswordInString.length < 8) {
+      res.status(400).send(res.__('Password must be at least 8 characters long.'))
+      return
+    }
+    
+    const token = headers.authorization ? headers.authorization.substr('Bearer='.length) : null
+    const loggedInUser = security.authenticatedUsers.get(token)
+    
+    if (loggedInUser) {
+      // SECURITY FIX: Always verify current password before allowing password change
+      if (security.hash(currentPassword.toString()) !== loggedInUser.data.password) {
+        res.status(401).send(res.__('Current password is not correct.'))
+        return
+      }
+      
+      UserModel.findByPk(loggedInUser.data.id).then((user: UserModel | null) => {
+        if (user != null) {
+          user.update({ password: newPasswordInString }).then((user: UserModel) => {
+            res.json({ user })
           }).catch((error: Error) => {
             next(error)
           })
         }
-      } else {
-        next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
-      }
+      }).catch((error: Error) => {
+        next(error)
+      })
+    } else {
+      next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
     }
   }
 }

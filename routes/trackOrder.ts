@@ -12,12 +12,12 @@ const db = require('../data/mongodb')
 
 module.exports = function trackOrder () {
   return (req: Request, res: Response) => {
-    const id = utils.disableOnContainerEnv() ? String(req.params.id).replace(/[^\w-]+/g, '') : req.params.id
+    // SECURITY FIX: Sanitize input to prevent XSS and NoSQL injection
+    const id = String(req.params.id).replace(/[^\w-]+/g, '')
 
-    challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(id, '<iframe src="javascript:alert(`xss`)">') })
-    db.orders.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {
+    // SECURITY FIX: Use safe query syntax instead of $where with user input
+    db.orders.find({ orderId: id }).then((order: any) => {
       const result = utils.queryResultToJson(order)
-      challengeUtils.solveIf(challenges.noSqlOrdersChallenge, () => { return result.data.length > 1 })
       if (result.data[0] === undefined) {
         result.data[0] = { orderId: id }
       }

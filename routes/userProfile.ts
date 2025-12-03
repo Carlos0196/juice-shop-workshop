@@ -25,21 +25,10 @@ module.exports = function getUserProfile () {
       if (loggedInUser) {
         UserModel.findByPk(loggedInUser.data.id).then((user: UserModel | null) => {
           let template = buf.toString()
-          let username = user?.username
-          if (username?.match(/#{(.*)}/) !== null && !utils.disableOnContainerEnv()) {
-            req.app.locals.abused_ssti_bug = true
-            const code = username?.substring(2, username.length - 1)
-            try {
-              if (!code) {
-                throw new Error('Username is null')
-              }
-              username = eval(code) // eslint-disable-line no-eval
-            } catch (err) {
-              username = '\\' + username
-            }
-          } else {
-            username = '\\' + username
-          }
+          // SECURITY FIX: Removed eval() - escape username instead of executing code
+          // This prevents Server-Side Template Injection (SSTI) attacks
+          let username = user?.username ? entities.encode(user.username) : ''
+          
           const theme = themes[config.get<string>('application.theme')]
           if (username) {
             template = template.replace(/_username_/g, username)
@@ -54,9 +43,9 @@ module.exports = function getUserProfile () {
           template = template.replace(/_primDark_/g, theme.primDark)
           template = template.replace(/_logo_/g, utils.extractFilename(config.get('application.logo')))
           const fn = pug.compile(template)
-          const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval' https://code.getmdl.io http://ajax.googleapis.com`
-          // @ts-expect-error FIXME type issue with string vs. undefined for username
-          challengeUtils.solveIf(challenges.usernameXssChallenge, () => { return user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(username, '<script>alert(`xss`)</script>') })
+          // SECURITY FIX: Stricter CSP - removed unsafe-eval, validate profileImage URL
+          const sanitizedProfileImage = user?.profileImage?.match(/^[a-zA-Z0-9\/_.-]+$/) ? user.profileImage : '/assets/public/images/uploads/default.svg'
+          const CSP = `img-src 'self' ${sanitizedProfileImage}; script-src 'self' https://code.getmdl.io http://ajax.googleapis.com`
 
           res.set({
             'Content-Security-Policy': CSP

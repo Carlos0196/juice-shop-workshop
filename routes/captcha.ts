@@ -7,6 +7,43 @@ import { type Request, type Response, type NextFunction } from 'express'
 import { type Captcha } from '../data/types'
 import { CaptchaModel } from '../models/captcha'
 
+// SECURITY FIX: Safe math expression evaluator without using eval()
+function safeEvaluate (firstTerm: number, firstOp: string, secondTerm: number, secondOp: string, thirdTerm: number): number {
+  // Calculate following order of operations (multiplication first)
+  let result: number
+  
+  // First, handle any multiplications
+  let leftValue = firstTerm
+  let rightValue = thirdTerm
+  let middleValue = secondTerm
+  
+  if (firstOp === '*') {
+    leftValue = firstTerm * secondTerm
+    middleValue = leftValue
+    // Now apply second operator to leftValue and thirdTerm
+    if (secondOp === '*') return leftValue * thirdTerm
+    if (secondOp === '+') return leftValue + thirdTerm
+    if (secondOp === '-') return leftValue - thirdTerm
+  } else if (secondOp === '*') {
+    rightValue = secondTerm * thirdTerm
+    // Now apply first operator to firstTerm and rightValue
+    if (firstOp === '+') return firstTerm + rightValue
+    if (firstOp === '-') return firstTerm - rightValue
+  } else {
+    // No multiplication, evaluate left to right
+    if (firstOp === '+') {
+      middleValue = firstTerm + secondTerm
+    } else if (firstOp === '-') {
+      middleValue = firstTerm - secondTerm
+    }
+    
+    if (secondOp === '+') return middleValue + thirdTerm
+    if (secondOp === '-') return middleValue - thirdTerm
+  }
+  
+  return 0
+}
+
 function captchas () {
   return async (req: Request, res: Response) => {
     const captchaId = req.app.locals.captchaId++
@@ -20,7 +57,8 @@ function captchas () {
     const secondOperator = operators[Math.floor((Math.random() * 3))]
 
     const expression = firstTerm.toString() + firstOperator + secondTerm.toString() + secondOperator + thirdTerm.toString()
-    const answer = eval(expression).toString() // eslint-disable-line no-eval
+    // SECURITY FIX: Use safe math evaluation instead of eval()
+    const answer = safeEvaluate(firstTerm, firstOperator, secondTerm, secondOperator, thirdTerm).toString()
 
     const captcha = {
       captchaId,
@@ -29,7 +67,13 @@ function captchas () {
     }
     const captchaInstance = CaptchaModel.build(captcha)
     await captchaInstance.save()
-    res.json(captcha)
+    
+    // SECURITY FIX: Don't send the answer to the client!
+    res.json({
+      captchaId,
+      captcha: expression
+      // answer intentionally omitted - should only be stored server-side
+    })
   }
 }
 
