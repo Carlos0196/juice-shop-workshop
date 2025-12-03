@@ -127,7 +127,6 @@
     "ethers": "^6.7.0",
     "exif": "^0.6.0",
     "express": "^5.0.0",
-    "express-ipfilter": "^1.2.0",
     "express-jwt": "^6.0.0",
     "express-rate-limit": "^6.7.0",
     "express-robots-txt": "^0.4.1",

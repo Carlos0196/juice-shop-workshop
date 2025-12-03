@@ -44,7 +44,6 @@ const yaml = require('js-yaml')
 const swaggerUi = require('swagger-ui-express')
 const RateLimit = require('express-rate-limit')
 const client = require('prom-client')
-const ipfilter = require('express-ipfilter').IpFilter
 const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'))
 const {
   ensureFileIsPassed,
@@ -392,7 +391,16 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   /* Accounting users are allowed to check and update quantities */
   app.delete('/api/Quantitys/:id', security.denyAll())
   app.post('/api/Quantitys', security.denyAll())
-  app.use('/api/Quantitys/:id', security.isAccounting(), ipfilter(['123.456.789'], { mode: 'allow' }))
+  app.use('/api/Quantitys/:id', security.isAccounting(), (req: Request, res: Response, next: NextFunction) => {
+    // Simple IP allow-list middleware
+    const allowedIps = ['123.456.789']
+    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || ''
+    if (allowedIps.includes(ip)) {
+      next()
+    } else {
+      res.status(403).send('Forbidden')
+    }
+  })
   /* Feedbacks: Do not allow changes of existing feedback */
   app.put('/api/Feedbacks/:id', security.denyAll())
   /* PrivacyRequests: Only allowed for authenticated users */
