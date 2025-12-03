@@ -5,12 +5,10 @@
 
 import fs = require('fs')
 import { type Request, type Response } from 'express'
-import challengeUtils = require('../lib/challengeUtils')
 import config from 'config'
 import * as utils from '../lib/utils'
 
 const pug = require('pug')
-const challenges = require('../data/datacache').challenges
 const themes = require('../views/themes/themes').themes
 const Entities = require('html-entities').AllHtmlEntities
 const entities = new Entities()
@@ -54,7 +52,12 @@ exports.promotionVideo = () => {
       let template = buf.toString()
       const subs = getSubsFromFile()
 
-      challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
+      // SECURITY FIX: Sanitize subtitle content to prevent XSS
+      // Remove any script tags and encode HTML entities
+      const sanitizedSubs = subs
+        .replace(/<script[^>]*>.*?<\/script>/gi, '')  // Remove script tags
+        .replace(/</g, '&lt;')  // Encode < to prevent HTML injection
+        .replace(/>/g, '&gt;')  // Encode > to prevent HTML injection
 
       const theme = themes[config.get<string>('application.theme')]
       template = template.replace(/_title_/g, entities.encode(config.get('application.name')))
@@ -66,7 +69,8 @@ exports.promotionVideo = () => {
       template = template.replace(/_primDark_/g, theme.primDark)
       const fn = pug.compile(template)
       let compiledTemplate = fn()
-      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
+      // SECURITY FIX: Use sanitized subtitles
+      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + sanitizedSubs + '</script>')
       res.send(compiledTemplate)
     })
   }

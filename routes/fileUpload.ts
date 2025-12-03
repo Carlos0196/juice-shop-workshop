@@ -5,14 +5,11 @@
 
 import os from 'os'
 import fs = require('fs')
-import challengeUtils = require('../lib/challengeUtils')
 import { type NextFunction, type Request, type Response } from 'express'
 import path from 'path'
 import * as utils from '../lib/utils'
 
-const challenges = require('../data/datacache').challenges
 const libxml = require('libxmljs2')
-const vm = require('vm')
 const unzipper = require('unzipper')
 
 function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunction) {
@@ -36,13 +33,26 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
-                } else {
+                
+                // SECURITY FIX: Prevent Zip Slip attack by validating path
+                // Reject any paths containing ".." or starting with "/"
+                if (fileName.includes('..') || fileName.startsWith('/') || fileName.startsWith('\\')) {
                   entry.autodrain()
+                  return
                 }
+                
+                // Sanitize filename - only allow alphanumeric, dots, underscores, hyphens
+                const sanitizedFileName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '_')
+                const targetDir = path.resolve('uploads/complaints/')
+                const absolutePath = path.resolve(targetDir, sanitizedFileName)
+                
+                // SECURITY FIX: Ensure the resolved path is still within the target directory
+                if (!absolutePath.startsWith(targetDir)) {
+                  entry.autodrain()
+                  return
+                }
+                
+                entry.pipe(fs.createWriteStream(absolutePath).on('error', function (err) { next(err) }))
               }).on('error', function (err: unknown) { next(err) })
           })
         })
@@ -55,44 +65,50 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
 }
 
 function checkUploadSize ({ file }: Request, res: Response, next: NextFunction) {
-  if (file != null) {
-    challengeUtils.solveIf(challenges.uploadSizeChallenge, () => { return file?.size > 100000 })
+  // SECURITY FIX: Enforce file size limit
+  const MAX_FILE_SIZE = 100000 // 100KB
+  if (file != null && file.size > MAX_FILE_SIZE) {
+    res.status(413).json({ error: 'File too large. Maximum size is 100KB.' })
+    return
   }
   next()
 }
 
 function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
+  // SECURITY FIX: Only allow specific file types
+  const allowedTypes = ['pdf', 'xml', 'zip']
   const fileType = file?.originalname.substr(file.originalname.lastIndexOf('.') + 1).toLowerCase()
-  challengeUtils.solveIf(challenges.uploadTypeChallenge, () => {
-    return !(fileType === 'pdf' || fileType === 'xml' || fileType === 'zip')
-  })
+  if (fileType && !allowedTypes.includes(fileType)) {
+    res.status(415).json({ error: 'Invalid file type. Only PDF, XML, and ZIP files are allowed.' })
+    return
+  }
   next()
 }
 
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
-    challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
-    if (((file?.buffer) != null) && !utils.disableOnContainerEnv()) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
+    if ((file?.buffer) != null) {
       const data = file.buffer.toString()
       try {
-        const sandbox = { libxml, data }
-        vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
+        // SECURITY FIX: Disable external entities to prevent XXE attacks
+        // noent: false - don't substitute entities (prevents XXE file disclosure)
+        // nonet: true - disable network access (prevents SSRF via XXE)
+        // dtdload: false - don't load external DTDs
+        // dtdvalid: false - don't validate against DTD
+        const xmlDoc = libxml.parseXml(data, { 
+          noblanks: true, 
+          noent: false,      // SECURITY FIX: Disable entity substitution
+          nocdata: true,
+          nonet: true,       // SECURITY FIX: Disable network access
+          dtdload: false,    // SECURITY FIX: Don't load external DTDs
+          dtdvalid: false    // SECURITY FIX: Don't validate DTD
+        })
         const xmlString = xmlDoc.toString(false)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
         res.status(410)
         next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(xmlString, 400) + ' (' + file.originalname + ')'))
-      } catch (err: any) { // TODO: Remove any
-        if (utils.contains(err.message, 'Script execution timed out')) {
-          if (challengeUtils.notSolved(challenges.xxeDosChallenge)) {
-            challengeUtils.solve(challenges.xxeDosChallenge)
-          }
-          res.status(503)
-          next(new Error('Sorry, we are temporarily not available! Please try again later.'))
-        } else {
-          res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + err.message + ' (' + file.originalname + ')'))
-        }
+      } catch (err: any) {
+        res.status(410)
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + err.message + ' (' + file.originalname + ')'))
       }
     } else {
       res.status(410)

@@ -20,7 +20,42 @@ import * as utils from './utils'
 import * as z85 from 'z85'
 
 export const publicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
-const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\r\n-----END RSA PRIVATE KEY-----'
+// SECURITY FIX: Private key should be loaded from environment variable or secure key file
+// For production, set JWT_PRIVATE_KEY environment variable
+const getPrivateKey = (): string => {
+  if (process.env.JWT_PRIVATE_KEY) {
+    return process.env.JWT_PRIVATE_KEY
+  }
+  try {
+    return fs.readFileSync('encryptionkeys/jwt.key', 'utf8')
+  } catch {
+    // IMPORTANT: In production, always use JWT_PRIVATE_KEY env variable
+    // This fallback is only for development/testing
+    console.warn('WARNING: Using fallback JWT private key. Set JWT_PRIVATE_KEY in production!')
+    return `-----BEGIN RSA PRIVATE KEY-----
+MIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8
+iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6sy
+CEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQAB
+AoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce
+95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2w
+XLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLty
+g6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5H
+fUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wum
+m2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinr
+utZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE
+9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJ
+S2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Z
+xaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=
+-----END RSA PRIVATE KEY-----`
+  }
+}
+const privateKey = getPrivateKey()
+
+// SECURITY FIX: HMAC secret should be loaded from environment variable
+const HMAC_SECRET = process.env.HMAC_SECRET || crypto.randomBytes(32).toString('hex')
+
+// SECURITY FIX: Password hashing salt - should be stored securely
+const PASSWORD_SALT = process.env.PASSWORD_SALT || 'juice-shop-secure-salt-2024'
 
 interface ResponseWithUser {
   status: string
@@ -40,8 +75,15 @@ interface IAuthenticatedUsers {
   updateFrom: (req: Request, user: ResponseWithUser) => any
 }
 
-export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
-export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
+// SECURITY FIX: Use PBKDF2 with SHA-256 instead of MD5 for password hashing
+// MD5 is cryptographically broken and should never be used for passwords
+export const hash = (data: string) => {
+  // Use PBKDF2 with 100,000 iterations, 64-byte output
+  return crypto.pbkdf2Sync(data, PASSWORD_SALT, 100000, 64, 'sha512').toString('hex')
+}
+
+// SECURITY FIX: Use environment variable for HMAC secret instead of hardcoded value
+export const hmac = (data: string) => crypto.createHmac('sha256', HMAC_SECRET).update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
@@ -126,26 +168,42 @@ function hasValidFormat (coupon: string) {
   return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
 }
 
-// vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge
+// SECURITY FIX: Removed cryptocurrency donation addresses - only allow trusted domains
 export const redirectAllowlist = new Set([
   'https://github.com/juice-shop/juice-shop',
-  'https://blockchain.info/address/1AbKfgvw9psQ41NbLi8kufDQTezwG8DRZm', // vuln-code-snippet vuln-line redirectCryptoCurrencyChallenge
-  'https://explorer.dash.org/address/Xr556RzuwX6hg5EGpkybbv5RanJoZN17kW', // vuln-code-snippet vuln-line redirectCryptoCurrencyChallenge
-  'https://etherscan.io/address/0x0f933ab9fcaaa782d0279c300d73750e1311eae6', // vuln-code-snippet vuln-line redirectCryptoCurrencyChallenge
   'http://shop.spreadshirt.com/juiceshop',
   'http://shop.spreadshirt.de/juiceshop',
   'https://www.stickeryou.com/products/owasp-juice-shop/794',
   'http://leanpub.com/juice-shop'
 ])
 
+// SECURITY FIX: Use strict URL matching with startsWith instead of includes
+// The includes() method allowed open redirect attacks via URLs like:
+// https://attacker.com/?url=https://github.com/juice-shop/juice-shop
 export const isRedirectAllowed = (url: string) => {
-  let allowed = false
-  for (const allowedUrl of redirectAllowlist) {
-    allowed = allowed || url.includes(allowedUrl) // vuln-code-snippet vuln-line redirectChallenge
+  if (!url || typeof url !== 'string') {
+    return false
   }
-  return allowed
+  
+  // Validate URL format
+  try {
+    const parsedUrl = new URL(url)
+    // Only allow http and https protocols
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return false
+    }
+  } catch {
+    return false
+  }
+  
+  // SECURITY FIX: Use exact URL prefix matching instead of substring matching
+  for (const allowedUrl of redirectAllowlist) {
+    if (url === allowedUrl || url.startsWith(allowedUrl + '/') || url.startsWith(allowedUrl + '?')) {
+      return true
+    }
+  }
+  return false
 }
-// vuln-code-snippet end redirectCryptoCurrencyChallenge redirectChallenge
 
 export const roles = {
   customer: 'customer',
@@ -155,8 +213,9 @@ export const roles = {
 }
 
 export const deluxeToken = (email: string) => {
-  const hmac = crypto.createHmac('sha256', privateKey)
-  return hmac.update(email + roles.deluxe).digest('hex')
+  // SECURITY FIX: Use dedicated secret instead of private key
+  const hmacInstance = crypto.createHmac('sha256', HMAC_SECRET)
+  return hmacInstance.update(email + roles.deluxe).digest('hex')
 }
 
 export const isAccounting = () => {
