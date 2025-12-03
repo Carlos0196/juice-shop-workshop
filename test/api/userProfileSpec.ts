@@ -11,7 +11,7 @@ const URL = 'http://localhost:3000'
 const jsonHeader = { 'content-type': 'application/json' }
 let authHeader: { Cookie: any }
 
-beforeAll(() => {
+before(() => {
   return frisby.post(`${URL}/rest/user/login`, {
     headers: jsonHeader,
     body: {

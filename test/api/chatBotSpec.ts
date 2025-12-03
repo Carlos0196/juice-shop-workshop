@@ -32,9 +32,9 @@ async function login ({ email, password }: { email: string, password: string }) 
 }
 
 describe('/chatbot', () => {
-  beforeAll(async () => {
-    await initialize()
-    trainingData = JSON.parse(await fs.readFile(`data/chatbot/${utils.extractFilename(config.get('application.chatBot.trainingData'))}`, { encoding: 'utf8' }))
+  before(async function () {
+      await initialize()
+      trainingData = JSON.parse(await fs.readFile(`data/chatbot/${utils.extractFilename(config.get('application.chatBot.trainingData'))}`, {encoding: 'utf8'}))
   })
 
   describe('/status', () => {

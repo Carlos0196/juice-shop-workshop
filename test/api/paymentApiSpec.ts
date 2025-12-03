@@ -12,7 +12,7 @@ const jsonHeader = { 'content-type': 'application/json' }
 let authHeader: { Authorization: string, 'content-type': string }
 let cardId: number
 
-beforeAll(() => {
+before(() => {
   return frisby.post(REST_URL + '/user/login', {
     headers: jsonHeader,
     body: {
@@ -101,7 +101,7 @@ describe('/api/Cards', () => {
 })
 
 describe('/api/Cards/:id', () => {
-  beforeAll(() => {
+  before(() => {
     return frisby.post(API_URL + '/Cards', {
       headers: authHeader,
       body: {

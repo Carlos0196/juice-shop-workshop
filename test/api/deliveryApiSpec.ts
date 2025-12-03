@@ -15,7 +15,7 @@ let authHeader: { Authorization: string, 'content-type': string }
 
 describe('/api/Deliverys', () => {
   describe('for regular customer', () => {
-    beforeAll(() => {
+    before(() => {
       return frisby.post(REST_URL + '/user/login', {
         headers: jsonHeader,
         body: {
@@ -44,7 +44,7 @@ describe('/api/Deliverys', () => {
   })
 
   describe('for deluxe customer', () => {
-    beforeAll(() => {
+    before(() => {
       return frisby.post(REST_URL + '/user/login', {
         headers: jsonHeader,
         body: {
@@ -75,7 +75,7 @@ describe('/api/Deliverys', () => {
 
 describe('/api/Deliverys/:id', () => {
   describe('for regular customer', () => {
-    beforeAll(() => {
+    before(() => {
       return frisby.post(REST_URL + '/user/login', {
         headers: jsonHeader,
         body: {
@@ -103,7 +103,7 @@ describe('/api/Deliverys/:id', () => {
   })
 
   describe('for deluxe customer', () => {
-    beforeAll(() => {
+    before(() => {
       return frisby.post(REST_URL + '/user/login', {
         headers: jsonHeader,
         body: {

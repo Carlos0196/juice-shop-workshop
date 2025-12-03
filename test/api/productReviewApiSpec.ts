@@ -64,7 +64,7 @@ describe('/rest/products/reviews', () => {
 
   let reviewId: string
 
-  beforeAll((done) => {
+  before(function (done) {
     http.get(`${REST_URL}/products/1/reviews`, (res: IncomingMessage) => {
       let body = ''
 

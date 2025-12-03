@@ -3,4 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-jest.setTimeout(10000) // eslint-disable-line
+before(function () {
+  this.timeout(10000)
+})

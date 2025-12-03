@@ -17,19 +17,19 @@ const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
 
-beforeAll(() => {
-  return frisby.post(REST_URL + '/user/login', {
-    headers: jsonHeader,
-    body: {
-      email: 'jim@juice-sh.op',
-      password: 'ncc-1701'
-    }
-  })
-    .expect('status', 200)
-    .then(({ json }) => {
-      authHeader = { Authorization: 'Bearer ' + json.authentication.token, 'content-type': 'application/json' }
+before(() => {
+    return frisby.post(REST_URL + '/user/login', {
+        headers: jsonHeader,
+        body: {
+            email: 'jim@juice-sh.op',
+            password: 'ncc-1701'
+        }
     })
-})
+        .expect('status', 200)
+        .then(({json}) => {
+            authHeader = {Authorization: 'Bearer ' + json.authentication.token, 'content-type': 'application/json'}
+        })
+});
 
 describe('/rest/basket/:id', () => {
   it('GET existing basket by id is not allowed via public API', () => {
