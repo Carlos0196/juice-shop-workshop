@@ -15,11 +15,4 @@ spec:
       labels:
         app: snyk-juice-shop
     spec:
-      containers:
-      - name: juice-shop
-        image: troysnyk/snyk-juice-shop:linux
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 3000
-        securityContext:
-          privileged: true
+      containers: {}
