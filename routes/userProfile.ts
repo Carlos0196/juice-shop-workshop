@@ -44,7 +44,18 @@ module.exports = function getUserProfile () {
           template = template.replace(/_logo_/g, utils.extractFilename(config.get('application.logo')))
           const fn = pug.compile(template)
           // SECURITY FIX: Stricter CSP - removed unsafe-eval, validate profileImage URL
-          const sanitizedProfileImage = user?.profileImage?.match(/^[a-zA-Z0-9\/_.-]+$/) ? user.profileImage : '/assets/public/images/uploads/default.svg'
+          // Validate profileImage: must not contain path traversal (..) or start with /
+          const isValidProfileImage = (img: string | undefined): boolean => {
+            if (!img) return false
+            // Reject path traversal sequences
+            if (img.includes('..')) return false
+            // Reject absolute paths
+            if (img.startsWith('/') && !img.startsWith('/assets/')) return false
+            // Only allow alphanumeric, forward slash, underscore, dot, hyphen
+            // and must be a relative path or start with /assets/
+            return /^(\/assets\/|assets\/)?[a-zA-Z0-9][a-zA-Z0-9\/_.-]*$/.test(img)
+          }
+          const sanitizedProfileImage = isValidProfileImage(user?.profileImage) ? user.profileImage : '/assets/public/images/uploads/default.svg'
           const CSP = `img-src 'self' ${sanitizedProfileImage}; script-src 'self' https://code.getmdl.io http://ajax.googleapis.com`
 
           res.set({
